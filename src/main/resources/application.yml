@@ -1,0 +1,74 @@
+# ? FACTORY PATTERN - Application Configuration
+# This configuration supports the factory pattern implementation
+
+spring:
+  application:
+    name: factorypattern
+  profiles:
+    active: dev
+
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+# Logging configuration to see factory pattern in action
+logging:
+  level:
+    com.remittance: DEBUG
+    com.remittance.factory: INFO
+    com.remittance.service: INFO
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+# Management endpoints for monitoring
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+# Custom application properties
+remittance:
+  factory:
+    cache-enabled: true
+    cache-size: 100
+  processors:
+    gcash:
+      enabled: true
+      daily-limit: 50000
+      currency: PHP
+    paytm:
+      enabled: true
+      daily-limit: 100000
+      currency: INR
+    bank-transfer:
+      enabled: true
+      daily-limit: 500000
+      minimum-amount: 10
+
+---
+# Development profile
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+logging:
+  level:
+    com.remittance: DEBUG
+
+---
+# Production profile
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+logging:
+  level:
+    com.remittance: INFO
+    root: WARN
