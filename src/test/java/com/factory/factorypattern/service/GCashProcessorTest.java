@@ -5,6 +5,8 @@ import com.factory.factorypattern.model.PayoutResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
+import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 
@@ -16,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * Tests specific business logic for Philippines mobile wallet
  */
+@Service
 class GCashProcessorTest {
 
     private GCashProcessor gCashProcessor;

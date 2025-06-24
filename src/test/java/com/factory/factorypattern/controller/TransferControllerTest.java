@@ -1,7 +1,9 @@
 package com.factory.factorypattern.controller;
 
-
 import com.factory.factorypattern.factory.PayoutMethodFactory;
+import com.factory.factorypattern.service.BankTransferProcessor;
+import com.factory.factorypattern.service.GCashProcessor;
+import com.factory.factorypattern.service.PaytmProcessor;
 import com.factory.factorypattern.model.PayoutProcessor;
 import com.factory.factorypattern.model.PayoutRequest;
 import com.factory.factorypattern.model.PayoutResponse;
@@ -9,16 +11,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
@@ -34,53 +33,56 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * 🎯 MODERN FACTORY PATTERN INTEGRATION TESTS (Spring Boot 3.4+)
  *
- * This version uses the modern approach replacing @MockBean:
- * - Uses @Mock with @TestConfiguration
- * - Avoids deprecated @MockBean
- * - Provides better test isolation
- * - More explicit dependency management
+ * This version uses the latest Spring Boot 3.4+ approach:
+ * - Uses @MockitoBean (replaces deprecated @MockBean)
+ * - Uses @TestConfiguration for explicit bean management
+ * - Follows Spring Boot 3.4+ best practices
+ * - Provides clean test isolation
  */
 @WebMvcTest(TransferController.class)
-@ExtendWith(MockitoExtension.class)
-@SpringJUnitConfig
 class TransferControllerModernTest {
 
     @Autowired
     private MockMvc mockMvc;
 
-    @Mock
+    @MockitoBean
     private PayoutMethodFactory payoutMethodFactory;
-
-    @Mock
-    private PayoutProcessor mockProcessor;
 
     @Autowired
     private ObjectMapper objectMapper;
 
+    private PayoutProcessor mockProcessor;
+
     /**
-     * 🔧 MODERN APPROACH: Test Configuration
-     * Replaces @MockBean with explicit @TestConfiguration
+     * 🔧 SPRING BOOT 3.4+ APPROACH: Test Configuration
+     * Provides required beans for the test context
      */
     @TestConfiguration
     static class TestConfig {
 
         @Bean
         @Primary
-        public PayoutMethodFactory payoutMethodFactory() {
-            return org.mockito.Mockito.mock(PayoutMethodFactory.class);
+        public GCashProcessor gCashProcessor() {
+            return new GCashProcessor();
         }
 
         @Bean
         @Primary
-        public PayoutProcessor payoutProcessor() {
-            return org.mockito.Mockito.mock(PayoutProcessor.class);
+        public PaytmProcessor paytmProcessor() {
+            return new PaytmProcessor();
+        }
+
+        @Bean
+        @Primary
+        public BankTransferProcessor bankTransferProcessor() {
+            return new BankTransferProcessor();
         }
     }
 
     @BeforeEach
     void setUp() {
-        // Reset mocks before each test
-        org.mockito.Mockito.reset(payoutMethodFactory, mockProcessor);
+        // Create a mock processor for testing
+        mockProcessor = org.mockito.Mockito.mock(PayoutProcessor.class);
     }
 
     @Test
@@ -161,6 +163,84 @@ class TransferControllerModernTest {
                 .andExpect(jsonPath("$.country").value("philippines"))
                 .andExpect(jsonPath("$.supported").value(true))
                 .andExpect(jsonPath("$.message").value("Combination is supported"));
+    }
+
+    @Test
+    @DisplayName("❌ Controller handles unsupported combinations")
+    void shouldHandleUnsupportedCombination() throws Exception {
+        // Given - Unsupported combination
+        when(payoutMethodFactory.isSupported("mobile_wallet", "mars")).thenReturn(false);
+
+        // When & Then
+        mockMvc.perform(get("/api/transfer/validate")
+                        .param("method", "mobile_wallet")
+                        .param("country", "mars"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.method").value("mobile_wallet"))
+                .andExpect(jsonPath("$.country").value("mars"))
+                .andExpect(jsonPath("$.supported").value(false))
+                .andExpect(jsonPath("$.message").value("Combination is not supported"));
+    }
+
+    @Test
+    @DisplayName("🛡️ Controller validates request parameters")
+    void shouldValidateRequestParameters() throws Exception {
+        // Given - Invalid request (missing required fields)
+        PayoutRequest invalidRequest = new PayoutRequest();
+        invalidRequest.setPayoutMethod(""); // Empty method
+        invalidRequest.setDestinationCountry(""); // Empty country
+        // Missing amount, currency, etc.
+
+        // When & Then
+        mockMvc.perform(post("/api/transfer/send")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalidRequest)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("🔄 Factory creates different processors for different countries")
+    void shouldCreateDifferentProcessorsForDifferentCountries() throws Exception {
+        // Given - Philippines request
+        PayoutRequest philippinesRequest = createValidRequest();
+        philippinesRequest.setDestinationCountry("philippines");
+
+        PayoutResponse philippinesResponse = PayoutResponse.success("GC123", "GCash Philippines", philippinesRequest.getAmount());
+        philippinesResponse.setRecipientName(philippinesRequest.getRecipientName());
+        philippinesResponse.setCurrency("PHP");
+
+        // Mock factory for Philippines
+        when(payoutMethodFactory.createProcessor("mobile_wallet", "philippines")).thenReturn(mockProcessor);
+        when(mockProcessor.processTransfer(any(PayoutRequest.class))).thenReturn(philippinesResponse);
+
+        // When & Then - Philippines
+        mockMvc.perform(post("/api/transfer/send")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(philippinesRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.providerName").value("GCash Philippines"))
+                .andExpect(jsonPath("$.transactionId").value("GC123"));
+
+        // Given - India request
+        PayoutRequest indiaRequest = createValidRequest();
+        indiaRequest.setDestinationCountry("india");
+        indiaRequest.setCurrency("INR");
+
+        PayoutResponse indiaResponse = PayoutResponse.success("PTM456", "Paytm India", indiaRequest.getAmount());
+        indiaResponse.setRecipientName(indiaRequest.getRecipientName());
+        indiaResponse.setCurrency("INR");
+
+        // Mock factory for India
+        when(payoutMethodFactory.createProcessor("mobile_wallet", "india")).thenReturn(mockProcessor);
+        when(mockProcessor.processTransfer(any(PayoutRequest.class))).thenReturn(indiaResponse);
+
+        // When & Then - India
+        mockMvc.perform(post("/api/transfer/send")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(indiaRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.providerName").value("Paytm India"))
+                .andExpect(jsonPath("$.transactionId").value("PTM456"));
     }
 
     private PayoutRequest createValidRequest() {

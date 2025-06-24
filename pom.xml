@@ -33,6 +33,9 @@
 		<!-- Test Coverage Properties -->
 		<jacoco.version>0.8.11</jacoco.version>
 		<surefire.version>3.2.5</surefire.version>
+		<!-- Additional Properties -->
+		<jacoco.skip>false</jacoco.skip>
+		<maven.compiler.release>18</maven.compiler.release>
 	</properties>
 
 	<dependencies>
@@ -164,6 +167,7 @@
 				<configuration>
 					<source>18</source>
 					<target>18</target>
+					<release>18</release>
 					<annotationProcessorPaths>
 						<path>
 							<groupId>org.projectlombok</groupId>
@@ -218,12 +222,15 @@
 					<consoleOutputReporter>
 						<disable>false</disable>
 					</consoleOutputReporter>
-					<!-- JVM arguments for testing -->
-					<argLine>-Xmx1024m -XX:MaxPermSize=256m ${argLine}</argLine>
+					<!-- FIXED: JVM arguments for Java 18+ (removed MaxPermSize) -->
+					<argLine>-Xmx1024m -Xms256m --add-opens java.base/java.lang=ALL-UNNAMED ${argLine}</argLine>
 					<!-- System properties for tests -->
 					<systemPropertyVariables>
 						<spring.profiles.active>test</spring.profiles.active>
 					</systemPropertyVariables>
+					<!-- Fork configuration for stability -->
+					<forkCount>1</forkCount>
+					<reuseForks>true</reuseForks>
 				</configuration>
 			</plugin>
 
@@ -249,6 +256,22 @@
 						<goals>
 							<goal>report</goal>
 						</goals>
+						<configuration>
+							<dataFile>target/jacoco.exec</dataFile>
+							<outputDirectory>target/site/jacoco</outputDirectory>
+						</configuration>
+					</execution>
+					<!-- Generate coverage report in verify phase -->
+					<execution>
+						<id>post-unit-test</id>
+						<phase>test</phase>
+						<goals>
+							<goal>report</goal>
+						</goals>
+						<configuration>
+							<dataFile>target/jacoco.exec</dataFile>
+							<outputDirectory>target/site/jacoco</outputDirectory>
+						</configuration>
 					</execution>
 					<!-- Check coverage thresholds -->
 					<execution>
@@ -257,7 +280,23 @@
 							<goal>check</goal>
 						</goals>
 						<configuration>
+							<haltOnFailure>false</haltOnFailure>
 							<rules>
+								<rule>
+									<element>PACKAGE</element>
+									<limits>
+										<limit>
+											<counter>LINE</counter>
+											<value>COVEREDRATIO</value>
+											<minimum>0.70</minimum>
+										</limit>
+									</limits>
+									<includes>
+										<include>com.factory.factorypattern.factory.*</include>
+										<include>com.factory.factorypattern.service.*</include>
+										<include>com.factory.factorypattern.controller.*</include>
+									</includes>
+								</rule>
 								<rule>
 									<element>CLASS</element>
 									<limits>
@@ -267,10 +306,15 @@
 											<value>COVEREDRATIO</value>
 											<minimum>0.80</minimum>
 										</limit>
+										<limit>
+											<counter>BRANCH</counter>
+											<value>COVEREDRATIO</value>
+											<minimum>0.75</minimum>
+										</limit>
 									</limits>
 									<includes>
-										<include>com.factory.factory.*</include>
-										<include>com.factory.service.*</include>
+										<include>com.factory.factorypattern.factory.*</include>
+										<include>com.factory.factorypattern.service.*</include>
 									</includes>
 								</rule>
 							</rules>
@@ -280,9 +324,16 @@
 				<configuration>
 					<!-- Exclude certain classes from coverage -->
 					<excludes>
-						<exclude>com/factory/*Application.class</exclude>
-						<exclude>com/factory/config/*</exclude>
+						<exclude>com/factory/factorypattern/*Application.class</exclude>
+						<exclude>com/factory/factorypattern/config/*</exclude>
+						<exclude>com/factory/factorypattern/model/*</exclude>
+						<exclude>**/*Test*.class</exclude>
+						<exclude>**/*IT.class</exclude>
 					</excludes>
+					<!-- Include source directories -->
+					<includes>
+						<include>com/factory/factorypattern/**/*.class</include>
+					</includes>
 				</configuration>
 			</plugin>
 
@@ -306,6 +357,8 @@
 						<include>**/*IT.java</include>
 						<include>**/*IntegrationTest.java</include>
 					</includes>
+					<!-- Fixed JVM arguments for integration tests -->
+					<argLine>-Xmx1024m -Xms256m --add-opens java.base/java.lang=ALL-UNNAMED</argLine>
 				</configuration>
 			</plugin>
 

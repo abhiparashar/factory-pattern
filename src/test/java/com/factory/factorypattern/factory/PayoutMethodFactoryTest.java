@@ -10,6 +10,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
@@ -28,6 +29,7 @@ import static org.mockito.Mockito.*;
  * 4. Test caching mechanism
  * 5. Test factory utility methods
  */
+@Component
 class PayoutMethodFactoryTest {
 
     @Mock
