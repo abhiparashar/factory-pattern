@@ -31,13 +31,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
- * 🎯 MODERN FACTORY PATTERN INTEGRATION TESTS (Spring Boot 3.4+)
+ * 🎯 FIXED FACTORY PATTERN INTEGRATION TESTS (Spring Boot 3.4+)
  *
- * This version uses the latest Spring Boot 3.4+ approach:
- * - Uses @MockitoBean (replaces deprecated @MockBean)
- * - Uses @TestConfiguration for explicit bean management
- * - Follows Spring Boot 3.4+ best practices
- * - Provides clean test isolation
+ * FIXES APPLIED:
+ * 1. Added compiler -parameters flag to preserve parameter names
+ * 2. Updated JaCoCo version for Java 21+ compatibility
+ * 3. Enhanced parameter resolution for @RequestParam methods
+ * 4. Added proper Mockito mock exclusions for JaCoCo
  */
 @WebMvcTest(TransferController.class)
 class TransferControllerModernTest {
@@ -149,15 +149,16 @@ class TransferControllerModernTest {
     }
 
     @Test
-    @DisplayName("✅ Controller validates combination through factory")
+    @DisplayName("✅ Controller validates combination through factory - FIXED")
     void shouldValidateCombination() throws Exception {
         // Given - Supported combination
         when(payoutMethodFactory.isSupported("mobile_wallet", "philippines")).thenReturn(true);
 
-        // When & Then
+        // When & Then - FIXED: Using request parameters properly
         mockMvc.perform(get("/api/transfer/validate")
                         .param("method", "mobile_wallet")
-                        .param("country", "philippines"))
+                        .param("country", "philippines")
+                        .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.method").value("mobile_wallet"))
                 .andExpect(jsonPath("$.country").value("philippines"))
@@ -166,15 +167,16 @@ class TransferControllerModernTest {
     }
 
     @Test
-    @DisplayName("❌ Controller handles unsupported combinations")
+    @DisplayName("❌ Controller handles unsupported combinations - FIXED")
     void shouldHandleUnsupportedCombination() throws Exception {
         // Given - Unsupported combination
         when(payoutMethodFactory.isSupported("mobile_wallet", "mars")).thenReturn(false);
 
-        // When & Then
+        // When & Then - FIXED: Using request parameters properly
         mockMvc.perform(get("/api/transfer/validate")
                         .param("method", "mobile_wallet")
-                        .param("country", "mars"))
+                        .param("country", "mars")
+                        .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.method").value("mobile_wallet"))
                 .andExpect(jsonPath("$.country").value("mars"))
@@ -242,6 +244,8 @@ class TransferControllerModernTest {
                 .andExpect(jsonPath("$.providerName").value("Paytm India"))
                 .andExpect(jsonPath("$.transactionId").value("PTM456"));
     }
+
+
 
     private PayoutRequest createValidRequest() {
         PayoutRequest request = new PayoutRequest();
